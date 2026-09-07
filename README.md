@@ -1,109 +1,109 @@
 # improve
 
-An agent skill that audits any codebase and writes implementation plans for other agents to execute.
+一个会审计任意代码库、并为其他智能体写出实现计划的技能。
 
-The idea: use your most capable model for the part where intelligence compounds — understanding the codebase, judging what's worth doing, writing the spec — and hand execution to cheaper models. The skill never implements anything itself. The plan is the product.
+核心思路：把最吃模型能力的环节交给你最强的模型——理解代码库、判断什么值得做、写出规格——执行则交给更便宜的模型。这个技能本身从不实现任何东西。计划才是产出。
 
 ```
-you          →  /improve                    (expensive model, advises)
-plans/       →  001-fix-n-plus-one.md       (self-contained specs)
-other agent  →  implements, tests, ships    (cheap model, executes)
+你            →  /improve                    (更强的模型，担任顾问)
+plans/       →  001-fix-n-plus-one.md       (自包含规格)
+其他智能体    →  实现、测试、交付              (更便宜的模型，负责执行)
 ```
 
-## Install
+## 安装
 
 ```bash
 npx skills add shadcn/improve
 ```
 
-Works in any agent that supports [Agent Skills](https://agentskills.io) format. The plans it writes are plain markdown, so any agent (or human) can pick them up.
+适用于任何支持 [Agent Skills](https://agentskills.io) 格式的智能体。写出的计划是纯 markdown，任意智能体（或人）都能接手。
 
-## Usage
-
-```
-/improve                        full audit → prioritized findings → plans
-/improve quick                  cheap pass: hotspots, top findings only
-/improve deep                   exhaustive: every package, every category
-/improve security               focused audit (also: perf, tests, bugs, ...)
-/improve branch                 audit only what the current branch changes
-/improve next                   feature suggestions — where to take the project
-/improve plan <description>     skip the audit, spec one thing
-/improve review-plan <file>     critique and tighten an existing plan
-/improve execute <plan>         dispatch a cheaper executor, review its work
-/improve reconcile              refresh the backlog: verify, unblock, retire
-/improve ... --issues           also publish plans as GitHub issues
-```
-
-## How to use
-
-A typical first run, start to finish:
-
-1. Open your agent in the repo and run `/improve` (or `/improve quick` to keep it cheap).
-2. It maps the repo, audits it, and comes back with a findings table. Reply with the ones you want planned — "plan 1, 3 and 5".
-3. Plans land in `plans/` — one file each, plus an index with the recommended order. Read them; they're meant to be reviewed.
-4. Hand a plan to any agent ("implement plans/001-*.md"), or let the skill run it: `/improve execute 001`. It dispatches a cheaper model in an isolated worktree, reviews the diff against the plan, and reports back with a verdict. Merging stays up to you.
-5. Next session, run `/improve reconcile` to clean up the backlog: verify what landed, refresh what drifted, unblock what got stuck.
-
-Before a PR, `/improve branch` does the same thing scoped to just what your branch changes.
-
-## Example
-
-A run against [shadcn/ui](https://github.com/shadcn-ui/ui) came back with findings like:
+## 用法
 
 ```
-| # | Finding                                        | Category  | Effort | Confidence |
+/improve                        完整审计 → 按优先级排序的发现 → 计划
+/improve quick                  低成本扫描：只看热点和最重要的发现
+/improve deep                   穷尽扫描：每个包、每个类别
+/improve security               针对性审计（还有：perf, tests, bugs, ...）
+/improve branch                 只审计当前分支改动的内容
+/improve next                   功能建议 — 项目接下来该往哪走
+/improve plan <description>     跳过审计，直接为某一件事写规格
+/improve review-plan <file>     评审并收紧一份已有计划
+/improve execute <plan>         派出更便宜的执行者，并审查其产出
+/improve reconcile              刷新待办：核实、解阻、退役
+/improve ... --issues           同时把计划发布为 GitHub issues
+```
+
+## 怎么用
+
+一次典型的端到端首次运行：
+
+1. 在仓库里打开你的智能体，运行 `/improve`（想省成本就用 `/improve quick`）。
+2. 它会摸清仓库、做审计，然后给你一张发现表。回复你想写成计划的条目——「把 1、3、5 写成计划」。
+3. 计划落在 `plans/`——每条一个文件，外加一份推荐顺序的索引。请先读一遍；它们就是拿来审的。
+4. 把计划交给任意智能体（「实现 plans/001-*.md」），或让本技能来跑：`/improve execute 001`。它会在隔离的工作树里派出更便宜的模型，对照计划审查 diff，然后带着裁定回来。合不合并由你决定。
+5. 下次会话运行 `/improve reconcile` 清理待办：核实已落地的、刷新已漂移的、解阻卡住的。
+
+提 PR 之前，用 `/improve branch` 做同样的事，范围仅限当前分支的改动。
+
+## 示例
+
+对 [shadcn/ui](https://github.com/shadcn-ui/ui) 跑过一次，得到类似这样的发现：
+
+```
+| # | 发现                                           | 类别      | 工作量 | 置信度     |
 |---|------------------------------------------------|-----------|--------|------------|
-| 1 | shadow-config duplicated in search.ts/view.ts, | tech-debt | M      | HIGH       |
-|   | copies already drifted (TODO at search.ts:31)  |           |        |            |
-| 2 | O(n²) icon migration (migrate-icons.ts:168)    | perf      | S      | HIGH       |
+| 1 | shadow-config 在 search.ts/view.ts 中重复，     | tech-debt | M      | 高         |
+|   | 副本已经漂移（TODO 见 search.ts:31）            |           |        |            |
+| 2 | 图标迁移是 O(n²)（migrate-icons.ts:168）        | perf      | S      | 高         |
 ```
 
-…and rejected a few, with reasons recorded so they don't come back next run:
+……同时否决了几条，并记下原因，避免下次再冒出来：
 
 ```
-- [SEC-01] https_proxy env var "SSRF": by-design — standard proxy convention,
-  every CLI honors it. Not a finding.
+- [SEC-01] https_proxy 环境变量「SSRF」：设计如此 — 标准代理约定，
+  所有 CLI 都会遵守。不是发现。
 ```
 
-Picking #1 produced [this plan](./examples/001-extract-shadow-config-resolution.md) — current code excerpted, exact steps, the repo's own test/lint commands as verification gates, and STOP conditions for when reality doesn't match.
+选了 #1 之后产出了[这份计划](./examples/001-extract-shadow-config-resolution.md)——摘录了当前代码、给出精确步骤、用仓库自己的 test/lint 命令作为验证关卡，以及现实对不上时的停止条件。
 
-## How it works
+## 工作原理
 
-**Recon.** Maps the repo: stack, conventions, and the exact build/test/lint commands — these become verification gates in every plan. It also ingests intent and design docs when present — ADRs (`docs/adr/`), PRDs, `CONTEXT.md`, `DESIGN.md`, `PRODUCT.md` — so decided tradeoffs aren't re-flagged as findings, direction suggestions stay grounded in stated product intent, and plans speak the repo's own vocabulary. Composes with any repo that already maintains these docs.
+**勘察。** 摸清仓库：技术栈、约定，以及确切的构建/测试/lint 命令——这些会成为每份计划里的验证关卡。若仓库里已有意图和设计文档，也会读进去——ADR（`docs/adr/`）、PRD、`CONTEXT.md`、`DESIGN.md`、`PRODUCT.md`——这样已拍板的取舍不会被重新标成发现，方向建议会锚定在已声明的产品意图上，计划也会沿用仓库自己的用语。任何已经维护这些文档的仓库都能直接组合使用。
 
-**Audit.** Fans out parallel subagents across nine categories: correctness, security, performance, test coverage, tech debt, dependencies & migrations, DX, docs, and direction (feature suggestions — every one must cite evidence from the repo itself, no generic idea-slop). Every finding carries `file:line` evidence, impact, effort, and confidence.
+**审计。** 并行派出子代理，覆盖九个类别：正确性、安全、性能、测试覆盖、技术债、依赖与迁移、开发体验、文档，以及方向（功能建议——每一条都必须引用仓库里的证据，不要空泛点子）。每条发现都带 `file:line` 证据、影响、工作量和置信度。
 
-**Vet.** Subagents over-report, so the advisor re-reads every cited location itself before showing you anything — false positives get dropped, wrong attributions get corrected, rejections get recorded.
+**核实。** 子代理会过度上报，所以顾问在给你看任何东西之前，会亲自重读每一处被引用的位置——误报剔除、错误归因纠正、否决记录在案。
 
-**Prioritize.** Findings land in a table ordered by leverage (impact ÷ effort, weighted by confidence). You pick what becomes plans.
+**排序。** 发现按杠杆率（影响 ÷ 工作量，按置信度加权）排进一张表。你来挑哪些写成计划。
 
-**Plan.** One file per selected finding, written into `plans/` with an index, priority order, and dependency graph.
+**写计划。** 每条选中的发现一个文件，写入 `plans/`，带索引、优先级顺序和依赖图。
 
-## What makes the plans executable
+## 计划为什么能直接执行
 
-Plans are written for the weakest plausible executor — a model that has never seen the advisor session and may be much smaller. Three properties carry that:
+计划是写给最弱但仍说得通的执行者的——一个从未见过顾问会话、而且可能小得多的模型。靠这三条撑住：
 
-- **Self-contained.** All context is inlined: exact file paths, current-state code excerpts, repo conventions with an exemplar file, verified commands. No "as discussed above."
-- **Verification gates.** Every step ends with a command and its expected output. Done criteria are machine-checkable. The executor never has to judge whether it succeeded.
-- **Hard boundaries.** Explicit out-of-scope lists, and STOP conditions — "if X, stop and report" — instead of letting a small model improvise when reality doesn't match the plan.
+- **自包含。** 全部上下文都内联进去：确切文件路径、当前代码摘录、仓库约定及一份范例文件、已核实的命令。没有「如前所述」。
+- **验证关卡。** 每一步都以一条命令及其预期输出收尾。完成标准可被机器校验。执行者不必自己判断是否成功。
+- **硬边界。** 明确的范围外清单，以及停止条件——「如果出现 X，停下来上报」——而不是让小模型在现实对不上计划时自己即兴发挥。
 
-Each plan also stamps the git commit it was written against, so executors run a mechanical drift check before touching anything.
+每份计划还会标注它针对的 git commit，执行者动手前会先做一次机械式漂移检查。
 
-## Closing the loop
+## 闭环
 
-Plans aren't fire-and-forget:
+计划不是发出去就不管了：
 
-- **`execute <plan>`** spawns a cheaper executor subagent in an isolated git worktree, hands it the plan, then reviews the result like a tech lead — re-runs every done criterion, checks scope compliance, reads the diff against intent. Verdict: approve (merging stays your call), send back for revision (max 2 rounds), or block and refine the plan.
-- **`reconcile`** processes what happened since: verifies DONE plans still hold, investigates BLOCKED ones and rewrites around the obstacle, refreshes drifted plans, retires findings that got fixed independently.
-- **`--issues`** publishes plans as GitHub issues — same self-contained body, so any agent or human can pick them up where work already lives.
+- **`execute <plan>`** 在隔离的 git 工作树里拉起一个更便宜的执行者子代理，把计划交给它，然后像技术负责人一样审查结果——重跑每条完成标准、检查是否越界、对照意图阅读 diff。裁定：通过（合并不合仍然由你决定）、打回修改（最多 2 轮），或阻断并修订计划。
+- **`reconcile`** 处理这期间发生的事：核实已完成的计划是否仍然成立，调查已阻塞的并绕过障碍重写，刷新已漂移的计划，退役那些已被独立修复的发现。
+- **`--issues`** 把计划发布为 GitHub issues——正文同样自包含，任意智能体或人都可以在工作本来就发生的地方接手。
 
-## Hard rules
+## 硬性规则
 
-- Never modifies source code itself. The only writes go to `plans/`; executors edit only in disposable worktrees, and merging is always yours.
-- Never runs commands that mutate your working tree — read, search, and read-only analysis only.
-- Never reproduces secret values. Locations and credential types only, rotation always recommended.
-- Asked to implement? It declines and points at the plan (or offers `execute`).
+- 本身从不改源代码。唯一的写入是 `plans/`；执行者只在一次性的工作树里改代码，合并永远由你来做。
+- 从不运行会改动你工作区的命令——只读、搜索、只读分析。
+- 从不复现密钥的具体值。只报位置和凭证类型，并始终建议轮换。
+- 被要求实现？它会拒绝，并指向计划（或提议 `execute`）。
 
-## License
+## 许可证
 
 MIT © shadcn

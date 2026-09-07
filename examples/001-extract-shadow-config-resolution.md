@@ -1,46 +1,30 @@
-> **Sample output.** A real plan produced by `/improve` against
-> [shadcn/ui](https://github.com/shadcn-ui/ui) at commit `1994caba0`
-> (2026-06-10), kept here as an example of the format. The codebase has
-> moved on — don't execute this; run `/improve` on your own repo instead.
+> **示例输出。** 这是 `/improve` 针对
+> [shadcn/ui](https://github.com/shadcn-ui/ui) 在 commit `1994caba0`
+> （2026-06-10）生成的真实计划，作为格式示例保留。代码库已继续演进——不要执行本计划；请在你自己的仓库上运行 `/improve`。
 
-# Plan 001: Extract shared shadow-config resolution used by search and view
+# 计划 001：提取 search 与 view 共用的 shadow-config 解析
 
-> **Executor instructions**: Follow this plan step by step. Run every
-> verification command and confirm the expected result before moving to the
-> next step. If anything in the "STOP conditions" section occurs, stop and
-> report — do not improvise. When done, update the status row for this plan
-> in `plans/README.md`.
+> **执行者须知**：按步骤执行本计划。每条验证命令都要跑完，并确认结果符合预期后再进入下一步。若「停止条件」一节中的任何情况发生，立即停止并汇报——不要即兴发挥。完成后，更新 `plans/README.md` 中本计划的状态行。
 >
-> **Drift check (run first)**: `git diff --stat 1994caba0..HEAD -- packages/shadcn/src/commands/search.ts packages/shadcn/src/commands/view.ts packages/shadcn/src/registry/config.ts`
-> If any of these changed since this plan was written, compare the
-> "Current state" excerpts against the live code before proceeding; on a
-> mismatch, treat it as a STOP condition.
+> **漂移检查（先跑）**：`git diff --stat 1994caba0..HEAD -- packages/shadcn/src/commands/search.ts packages/shadcn/src/commands/view.ts packages/shadcn/src/registry/config.ts`
+> 若自本计划写成以来上述任一文件有改动，继续前请将「当前状态」中的摘录与实时代码对照；不一致则视为停止条件。
 
-## Status
+## 状态
 
-- **Priority**: P2
-- **Effort**: M
-- **Risk**: MED
-- **Depends on**: none
-- **Category**: tech-debt
-- **Planned at**: commit `1994caba0`, 2026-06-10
+- **优先级**：P2
+- **工作量**：M
+- **风险**：中
+- **依赖**：无
+- **类别**：tech-debt
+- **规划于**：commit `1994caba0`，2026-06-10
 
-## Why this matters
+## 为什么重要
 
-`search.ts` and `view.ts` each hand-roll the same "shadow config" fallback —
-build a default config, overlay a partial `components.json` if present, then
-try the full `getConfig()` and fall back on failure. The duplication is
-acknowledged in-code (`search.ts:31`: "TODO: We're duplicating logic for
-shadowConfig here. Revisit and properly abstract this."), and the two copies
-have **already drifted**: search seeds its defaults with
-`createConfig({style: "new-york", resolvedPaths: {cwd}})` while view starts
-from bare `configWithDefaults({})`. Any future change to partial-config
-handling (new defaults, validation rules) must currently be made twice and
-can silently diverge.
+`search.ts` 与 `view.ts` 各自手写了同一套 `shadow-config`（影子配置）回退逻辑——先构建默认配置，若存在则叠加上不完整的 `components.json`，再尝试完整的 `getConfig()`，失败则回退。代码中已承认这段重复（`search.ts:31`："TODO: We're duplicating logic for shadowConfig here. Revisit and properly abstract this."），而且两处副本**已经发生漂移**：search 用 `createConfig({style: "new-york", resolvedPaths: {cwd}})` 播种默认值，而 view 从空的 `configWithDefaults({})` 起步。今后对部分配置处理的任何改动（新默认值、校验规则）都必须改两处，并且可能静默分叉。
 
-## Current state
+## 当前状态
 
-- `packages/shadcn/src/commands/search.ts` — search/list command; shadow-config block at ~91–115:
+- `packages/shadcn/src/commands/search.ts` — search/list 命令；shadow-config 代码块约在 91–115 行：
 
 ```ts
 // search.ts ~91 (after `await loadEnvFiles(options.cwd)`)
@@ -78,44 +62,44 @@ try {
 }
 ```
 
-- `packages/shadcn/src/commands/view.ts` — view command; same pattern at ~36–55, but seeded from `configWithDefaults({})` (no style/cwd seed — this is the drift).
-- `packages/shadcn/src/registry/config.ts:20` — `configWithDefaults(config?: DeepPartial<Config>)`, the natural home for the shared helper. Has colocated tests in `packages/shadcn/src/registry/config.test.ts` — use those as the test pattern.
-- Conventions: TypeScript ESM, `@/src/...` import aliases, zod schemas from `@/src/schema`, colocated `*.test.ts` vitest files. Match `registry/config.ts` style.
+- `packages/shadcn/src/commands/view.ts` — view 命令；约 36–55 行是同一模式，但从 `configWithDefaults({})` 播种（没有 style/cwd 播种——这就是漂移）。
+- `packages/shadcn/src/registry/config.ts:20` — `configWithDefaults(config?: DeepPartial<Config>)`，共享辅助函数的自然归属。同目录测试在 `packages/shadcn/src/registry/config.test.ts` — 以那些测试为模板。
+- 约定：TypeScript ESM、`@/src/...` import 别名、来自 `@/src/schema` 的 zod schema、同目录 `*.test.ts` vitest 文件。风格对齐 `registry/config.ts`。
 
-## Commands you will need
+## 你将用到的命令
 
-| Purpose   | Command                          | Expected on success |
-|-----------|----------------------------------|---------------------|
-| Install   | `pnpm install`                   | exit 0              |
-| Tests     | `pnpm shadcn:test`               | all pass            |
-| Lint+types| `pnpm check`                     | exit 0              |
+| 用途      | 命令                             | 成功时预期 |
+|-----------|----------------------------------|-----------|
+| 安装      | `pnpm install`                   | exit 0    |
+| 测试      | `pnpm shadcn:test`               | 全部通过  |
+| 检查+类型 | `pnpm check`                     | exit 0    |
 
-Run from the repo root.
+在仓库根目录执行。
 
-## Scope
+## 范围
 
-**In scope** (the only files you should modify):
-- `packages/shadcn/src/registry/config.ts` (add the shared helper)
-- `packages/shadcn/src/registry/config.test.ts` (tests for it)
-- `packages/shadcn/src/commands/search.ts` (use it)
-- `packages/shadcn/src/commands/view.ts` (use it)
+**范围内**（只应修改这些文件）：
+- `packages/shadcn/src/registry/config.ts`（添加共享辅助函数）
+- `packages/shadcn/src/registry/config.test.ts`（为其编写测试）
+- `packages/shadcn/src/commands/search.ts`（改用该辅助函数）
+- `packages/shadcn/src/commands/view.ts`（改用该辅助函数）
 
-**Out of scope** (do NOT touch, even though they look related):
-- `packages/shadcn/src/commands/init.ts` — builds config via prompts, not the shadow pattern; no duplication there.
-- `packages/shadcn/src/utils/get-config.ts` — `getConfig`/`createConfig` stay as-is; the helper composes them.
-- Any behavior change to how a *complete* `components.json` is resolved — both commands must behave identically to today when a full config exists.
+**范围外**（不要动，即使看起来相关）：
+- `packages/shadcn/src/commands/init.ts` — 通过交互提示构建配置，不是 shadow-config 模式；那里没有重复。
+- `packages/shadcn/src/utils/get-config.ts` — `getConfig`/`createConfig` 保持原样；辅助函数组合调用它们。
+- 不要改变*完整* `components.json` 的解析行为——当存在完整配置时，两个命令的行为必须与今天完全一致。
 
-## Git workflow
+## Git 工作流
 
-- Branch: `advisor/001-extract-shadow-config-resolution`
-- Commit per step; messages follow the repo's conventional style (e.g. `refactor(cli): extract shadow-config resolution` — see `git log` for examples like `feat(cli): improve search command`).
-- Do NOT push or open a PR unless the operator instructed it.
+- 分支：`advisor/001-extract-shadow-config-resolution`
+- 每步一次提交；提交信息遵循仓库的约定式风格（例如 `refactor(cli): extract shadow-config resolution` — 见 `git log` 中类似 `feat(cli): improve search command` 的例子）。
+- 除非操作者明确要求，否则不要推送到远端，也不要打开拉取请求。
 
-## Steps
+## 步骤
 
-### Step 1: Add `resolveShadowConfig` to `registry/config.ts`
+### 步骤 1：向 `registry/config.ts` 添加 `resolveShadowConfig`
 
-Add an exported async function:
+添加一个导出的 async 函数：
 
 ```ts
 export async function resolveShadowConfig(
@@ -124,49 +108,49 @@ export async function resolveShadowConfig(
 ): Promise<Config>
 ```
 
-Behavior (extracted from search.ts above): build `configWithDefaults(createConfig({...seed, resolvedPaths: {cwd}}))`; if `components.json` exists at `cwd`, partial-parse it with `rawConfigSchema.partial()` and overlay; then try `getConfig(cwd)` and, when it returns a config, use `configWithDefaults(fullConfig)`; on throw, keep the shadow config. The `seed` parameter preserves search's `{style: "new-york"}` seeding.
+行为（从上文 search.ts 抽取）：构建 `configWithDefaults(createConfig({...seed, resolvedPaths: {cwd}}))`；若 `cwd` 下存在 `components.json`，用 `rawConfigSchema.partial()` 做部分解析并叠加；然后尝试 `getConfig(cwd)`，若返回配置则使用 `configWithDefaults(fullConfig)`；抛错时保留 shadow-config。`seed` 参数用于保留 search 的 `{style: "new-york"}` 播种。
 
-Add tests in `config.test.ts` (model after the existing tests there): no components.json → defaults; partial components.json → overlay; full components.json → getConfig path; malformed full config → falls back to shadow.
+在 `config.test.ts` 中添加测试（以该文件现有测试为模板）：无 components.json → 默认值；部分 components.json → 叠加；完整 components.json → getConfig 路径；格式错误的完整配置 → 回退到 shadow-config。
 
-**Verify**: `pnpm shadcn:test` → all pass, including the 4 new tests.
+**验证**：`pnpm shadcn:test` → 全部通过，含 4 个新测试。
 
-### Step 2: Switch `search.ts` to the helper
+### 步骤 2：将 `search.ts` 改为使用该辅助函数
 
-Replace the block at ~91–115 with a call to `resolveShadowConfig(options.cwd, { style: "new-york" })`. Remove now-unused imports (`createConfig`, `rawConfigSchema`, `fsExtra`/`path` if no longer used elsewhere in the file).
+将约 91–115 行的代码块替换为对 `resolveShadowConfig(options.cwd, { style: "new-york" })` 的调用。删除因此不再使用的 import（`createConfig`、`rawConfigSchema`，以及若文件其余处也不再使用则删除 `fsExtra`/`path`）。
 
-**Verify**: `pnpm shadcn:test` → pass; `pnpm check` → exit 0.
+**验证**：`pnpm shadcn:test` → 通过；`pnpm check` → exit 0。
 
-### Step 3: Switch `view.ts` to the helper
+### 步骤 3：将 `view.ts` 改为使用该辅助函数
 
-Replace the block at ~36–55 with `resolveShadowConfig(options.cwd)` (no seed — preserves its current bare-defaults behavior). Clean up unused imports.
+将约 36–55 行的代码块替换为 `resolveShadowConfig(options.cwd)`（不传 seed — 保留其当前的裸默认值行为）。清理未使用的 import。
 
-**Verify**: `pnpm shadcn:test` → pass; `pnpm check` → exit 0; `grep -rn "shadow config" packages/shadcn/src/commands/` → no matches.
+**验证**：`pnpm shadcn:test` → 通过；`pnpm check` → exit 0；`grep -rn "shadow config" packages/shadcn/src/commands/` → 无匹配。
 
-## Test plan
+## 测试计划
 
-- 4 new unit tests on `resolveShadowConfig` (Step 1), in `registry/config.test.ts`, modeled on the existing tests in that file.
-- Existing command tests must stay green: `pnpm shadcn:test`.
-- This plan adds no integration tests; the two commands' behavior is unchanged by construction (same logic, one home).
+- 针对 `resolveShadowConfig` 的 4 个新单元测试（步骤 1），放在 `registry/config.test.ts`，以该文件现有测试为模板。
+- 现有命令测试必须保持通过：`pnpm shadcn:test`。
+- 本计划不新增集成测试；两个命令的行为在抽取后保持不变（同一套逻辑，只放一处）。
 
-## Done criteria
+## 完成标准
 
-- [ ] `pnpm shadcn:test` exits 0; 4 new tests for `resolveShadowConfig` exist and pass
-- [ ] `pnpm check` exits 0
-- [ ] `grep -rn "TODO: We're duplicating logic for shadowConfig" packages/shadcn/src/` returns no matches (comment removed with the duplication)
-- [ ] Both `search.ts` and `view.ts` call `resolveShadowConfig`; neither contains an inline shadow-config block
-- [ ] No files outside the in-scope list are modified (`git status`)
-- [ ] `plans/README.md` status row updated
+- [ ] `pnpm shadcn:test` 以 exit 0 结束；`resolveShadowConfig` 的 4 个新测试存在且通过
+- [ ] `pnpm check` 以 exit 0 结束
+- [ ] `grep -rn "TODO: We're duplicating logic for shadowConfig" packages/shadcn/src/` 无匹配（注释随重复逻辑一并删除）
+- [ ] `search.ts` 与 `view.ts` 均调用 `resolveShadowConfig`；二者均不再包含内联的 shadow-config 代码块
+- [ ] 范围内清单之外的文件未被修改（`git status`）
+- [ ] 已更新 `plans/README.md` 的状态行
 
-## STOP conditions
+## 停止条件
 
-Stop and report back (do not improvise) if:
+出现以下情况时停止并汇报（不要即兴发挥）：
 
-- The code at the locations above doesn't match the excerpts (drift since `1994caba0`).
-- The seeding difference between search (`style: "new-york"`, cwd resolved paths) and view (bare defaults) turns out to be load-bearing in a way the `seed` parameter can't express — i.e. tests fail unless the helper grows command-specific branches.
-- Removing the block from either command requires touching files outside the in-scope list.
+- 上述位置的代码与摘录不符（自 `1994caba0` 以来发生漂移）。
+- search（`style: "new-york"`、cwd 解析路径）与 view（裸默认值）之间的播种差异被证明是不可省略的，且无法用 `seed` 参数表达——即除非辅助函数长出命令特有分支，否则测试失败。
+- 从任一命令中移除该代码块需要改动范围内清单之外的文件。
 
-## Maintenance notes
+## 维护说明
 
-- Future commands needing partial-config support should call `resolveShadowConfig`, not copy the pattern — reviewers should reject new inline shadow-config blocks.
-- If `init.ts` ever gains partial-config resumption, it should also use this helper; that's deferred (out of scope here) because init's prompt-driven flow has different semantics.
-- Reviewer focus: confirm view's behavior is byte-identical for the no-seed path — the drift between the two copies was likely unintentional, but if view *depended* on bare defaults, the no-seed call preserves that.
+- 今后需要部分配置支持的命令应调用 `resolveShadowConfig`，不要复制该模式——评审应拒绝新的内联 shadow-config 代码块。
+- 若 `init.ts` 日后需要部分配置续作，也应使用本辅助函数；此处推迟（范围外），因为 init 的提示驱动流程语义不同。
+- 评审关注点：确认 view 在无 seed 路径上的行为逐字节一致——两处副本之间的漂移很可能是无意的，但如果 view *依赖* 裸默认值，不传 seed 的调用会保留该行为。

@@ -1,197 +1,173 @@
-# Handoff Plan Template
+# 交接计划模板
 
-Every plan is written for an executor model that has **zero context**: it has not seen the advisor session, the audit, the other plans, or any prior conversation. It may be a smaller/cheaper model. Assume it is competent at following explicit instructions and weak at filling gaps, recovering from ambiguity, or knowing when to stop.
+每份计划都写给一个**零上下文**的执行者模型：它没看过顾问会话、审计、其他计划或任何先前对话。它可能是更小/更便宜的模型。假定它擅长遵循明确指令，但不擅长填补空白、从歧义中恢复，或知道何时该停下来。
 
-Three properties make a plan executable by a weaker model:
+让较弱模型也能执行计划的三个属性：
 
-1. **Self-contained context** — everything needed is in the file: paths, code excerpts, conventions, commands.
-2. **Verification gates** — every step ends with a command and its expected result. The executor never has to *judge* whether it succeeded.
-3. **Hard boundaries and escape hatches** — explicit out-of-scope list, and "STOP and report" conditions instead of letting the model improvise when reality doesn't match the plan.
+1. **自包含上下文** — 文件里有所需的一切：路径、代码摘录、约定、命令。
+2. **验证关卡** — 每一步都以一条命令及其预期结果结束。执行者从不需要*判断*自己是否成功。
+3. **硬边界和逃生口** — 明确的范围外清单，以及「停止并报告」条件，而不是在现实与计划不符时让模型即兴发挥。
 
-File naming: `plans/NNN-short-slug.md`, numbered in recommended execution order.
+文件命名：`plans/NNN-short-slug.md`，按建议的执行顺序编号。
 
 ---
 
-## Template
+## 模板
 
 ```markdown
-# Plan NNN: <Imperative title — what will be true after this plan>
+# 计划 NNN: <祈使句标题 — 本计划完成后将成立的事实>
 
-> **Executor instructions**: Follow this plan step by step. Run every
-> verification command and confirm the expected result before moving to the
-> next step. If anything in the "STOP conditions" section occurs, stop and
-> report — do not improvise. When done, update the status row for this plan
-> in `plans/README.md` — unless a reviewer dispatched you and told you they
-> maintain the index.
+> **执行者须知**：逐步遵循本计划。运行每一条验证命令，并在进入下一步之前确认预期结果。若「停止条件」一节中的任何情况发生，停止并报告 — 不要即兴发挥。完成后，更新 `plans/README.md` 中本计划的状态行 — 除非审查者派发了你并告知由他们维护索引。
 >
-> **Drift check (run first)**: `git diff --stat <planned-at SHA>..HEAD -- <in-scope paths>`
-> If any in-scope file changed since this plan was written, compare the
-> "Current state" excerpts against the live code before proceeding; on a
-> mismatch, treat it as a STOP condition.
+> **漂移检查（首先运行）**：`git diff --stat <planned-at SHA>..HEAD -- <in-scope paths>`
+> 若本计划写成之后，任何范围内文件已变更，请在继续之前将「当前状态」摘录与实时代码对照；若不一致，视为停止条件。
 
-## Status
+## 状态
 
-- **Priority**: P1 | P2 | P3
-- **Effort**: S | M | L
-- **Risk**: LOW | MED | HIGH
-- **Depends on**: plans/NNN-*.md (or "none")
-- **Category**: bug | security | perf | tests | tech-debt | migration | dx | docs | direction
-- **Planned at**: commit `<short SHA>`, <YYYY-MM-DD>
-- **Issue**: <GitHub issue URL — only when published via `--issues`; omit otherwise>
+- **优先级**: P1 | P2 | P3
+- **工作量**: S | M | L
+- **风险**: 低 | 中 | 高
+- **依赖**: plans/NNN-*.md（或「无」）
+- **类别**: bug | security | perf | tests | tech-debt | migration | dx | docs | direction
+- **规划于**: commit `<short SHA>`, <YYYY-MM-DD>
+- **议题**: <GitHub issue URL — 仅在通过 `--issues` 发布时填写；否则省略>
 
-## Why this matters
+## 为什么重要
 
-2–5 sentences. The problem, its concrete cost, and what improves when this
-lands. Written so the executor (and a human reviewer) understands the intent —
-intent is what lets a correct judgment call happen when a detail is off.
+2–5 句。问题、其具体代价，以及落地后会改善什么。写给执行者（和人类审查者）理解意图 — 意图让细节有偏差时仍能做出正确判断。
 
-## Current state
+## 当前状态
 
-The facts the executor needs, inlined — never "as discussed" or "see audit":
+执行者需要的事实，全部内联写出 — 切勿写「如前所述」或「见审计」：
 
-- The relevant files, each with one line on its role:
-  - `src/orders/api.ts` — order-list endpoint; contains the N+1 (lines 130–160)
-- Excerpts of the code as it exists today (short, with `file:line` markers),
-  enough that the executor can confirm it's looking at the right thing.
-- The repo conventions that apply here, with a pointer to one exemplar file:
-  "Error handling follows the Result pattern — see `src/lib/result.ts` and its
-  use in `src/users/api.ts:40-60`. Match it."
-- Any documented vocabulary or design constraints the plan must honor, inlined
-  from the intent/design docs found in recon: the relevant `CONTEXT.md` terms
-  the executor should use in names and comments, the `DESIGN.md` tokens/components
-  to reuse, or the ADR whose decision this work must stay consistent with. Quote
-  the specific lines — the executor has not read those docs.
+- 相关文件，各用一行说明其职责：
+  - `src/orders/api.ts` — 订单列表端点；含有 N+1（第 130–160 行）
+- 当前代码摘录（简短，带 `file:line` 标记），足以让执行者确认自己看对了地方。
+- 此处适用的仓库约定，并指向一个范例文件：
+  「错误处理遵循 Result 模式 — 见 `src/lib/result.ts` 及其在 `src/users/api.ts:40-60` 的用法。照此匹配。」
+- 计划必须遵守的已文档化词汇或设计约束，从勘察中找到的意图/设计文档内联摘出：执行者应在命名和注释中使用的相关 `CONTEXT.md` 术语、应复用的 `DESIGN.md` 令牌/组件，或本工作必须与之保持一致的 ADR 决策。引用具体行 — 执行者没有读过那些文档。
 
-## Commands you will need
+## 你将用到的命令
 
-| Purpose   | Command                  | Expected on success |
+| 用途      | 命令                     | 成功时预期          |
 |-----------|--------------------------|---------------------|
-| Install   | `pnpm install`           | exit 0              |
-| Typecheck | `pnpm typecheck`         | exit 0, no errors   |
-| Tests     | `pnpm test -- <filter>`  | all pass            |
-| Lint      | `pnpm lint`              | exit 0              |
+| 安装      | `pnpm install`           | exit 0              |
+| 类型检查  | `pnpm typecheck`         | exit 0, no errors   |
+| 测试      | `pnpm test -- <filter>`  | all pass            |
+| 代码检查  | `pnpm lint`              | exit 0              |
 
-(Exact commands from this repo — verified during recon, not guessed.)
+（本仓库的确切命令 — 在勘察期间核实过，不是猜的。）
 
-## Suggested executor toolkit
+## 建议执行者工具
 
-(Optional — include only when relevant skills/tools plausibly exist in the
-executor's environment. Skip the section otherwise.)
+（可选 — 仅在执行者环境中很可能存在相关技能/工具时包含。否则跳过本节。）
 
-- Skills the executor should invoke if available, and for what:
-  "use `vercel-react-best-practices` when writing the memoization in step 3".
-- Reference docs worth reading before starting, by path or URL.
+- 若可用，执行者应调用的技能，以及用于什么：
+  「在第 3 步编写记忆化时使用 `vercel-react-best-practices`」。
+- 开始前值得阅读的参考文档，按路径或 URL。
 
-## Scope
+## 范围
 
-**In scope** (the only files you should modify):
+**范围内**（你唯一应该修改的文件）：
 - `src/orders/api.ts`
-- `src/orders/api.test.ts` (create)
+- `src/orders/api.test.ts`（新建）
 
-**Out of scope** (do NOT touch, even though they look related):
-- `src/orders/legacy-api.ts` — deprecated path, scheduled for deletion;
-  changing it wastes effort and risks the v1 clients still pinned to it.
-- Any change to the public response shape — clients depend on it.
+**范围外**（切勿改动，即使看起来相关）：
+- `src/orders/legacy-api.ts` — 已弃用路径，计划删除；
+  改它浪费精力，且可能影响仍钉在其上的 v1 客户端。
+- 任何对公开响应形态的改动 — 客户端依赖它。
 
-## Git workflow
+## Git 工作流
 
-(Filled from recon — match the repo's observed conventions.)
+（由勘察填写 — 匹配仓库已观察到的约定。）
 
-- Branch: `advisor/NNN-<slug>` (or the repo's branch-naming convention if one is evident)
-- Commit per step or per logical unit; message style: <match repo, e.g. conventional commits — include an example from `git log`>
-- Do NOT push or open a PR unless the operator instructed it.
+- 分支：`advisor/NNN-<slug>`（或仓库若有明显的分支命名约定则用之）
+- 每步或每个逻辑单元一次提交；消息风格：<匹配仓库，例如 conventional commits — 从 `git log` 附一个例子>
+- 除非操作者指示，否则不要 push 或开 PR。
 
-## Steps
+## 步骤
 
-### Step 1: <imperative title>
+### 步骤 1: <祈使句标题>
 
-What to do, precisely. Reference exact files/symbols. Include the target code
-shape when it's load-bearing (the pattern to produce, not necessarily every
-line).
+精确说明要做什么。引用确切的文件/符号。当目标代码形态起承重作用时，包含它（要产出的模式，不必是每一行）。
 
-**Verify**: `<command>` → <expected output>
+**验证**：`<command>` → <预期输出>
 
-### Step 2: ...
+### 步骤 2: ...
 
-(Each step small enough to verify independently. Order steps so the codebase
-is never broken between steps when possible — e.g. add new path, switch
-callers, then remove old path.)
+（每一步小到可以独立验证。尽可能按步骤排序，使步骤之间代码库从不处于损坏状态 — 例如先加新路径，再切换调用方，然后移除旧路径。）
 
-## Test plan
+## 测试计划
 
-- New tests to write, in which file, covering which cases (list them:
-  happy path, the specific bug/regression this plan fixes, named edge cases).
-- Which existing test to use as the structural pattern:
-  "model after `src/users/api.test.ts`".
-- Verification: `<test command>` → all pass, including N new tests.
+- 要写的新测试、在哪个文件、覆盖哪些用例（列出它们：
+  正常路径、本计划修复的具体 bug/回归、具名边界情况）。
+- 用哪个现有测试作为结构范例：
+  「参照 `src/users/api.test.ts`」。
+- 验证：`<test command>` → 全部通过，包括 N 个新测试。
 
-## Done criteria
+## 完成标准
 
-Machine-checkable. ALL must hold:
+可机器检查。必须全部成立：
 
-- [ ] `pnpm typecheck` exits 0
-- [ ] `pnpm test` exits 0; new tests for <X> exist and pass
-- [ ] `grep -rn "<old pattern>" src/` returns no matches
-- [ ] No files outside the in-scope list are modified (`git status`)
-- [ ] `plans/README.md` status row updated
+- [ ] `pnpm typecheck` 以 0 退出
+- [ ] `pnpm test` 以 0 退出；针对 <X> 的新测试存在且通过
+- [ ] `grep -rn "<old pattern>" src/` 无匹配
+- [ ] 范围内清单之外没有任何文件被修改（`git status`）
+- [ ] `plans/README.md` 状态行已更新
 
-## STOP conditions
+## 停止条件
 
-Stop and report back (do not improvise) if:
+停止并报告（不要即兴发挥），如果：
 
-- The code at the locations in "Current state" doesn't match the excerpts
-  (the codebase has drifted since this plan was written).
-- A step's verification fails twice after a reasonable fix attempt.
-- The fix appears to require touching an out-of-scope file.
-- You discover the assumption "<key assumption>" is false.
+- 「当前状态」中位置的代码与摘录不符（自本计划写成以来代码库已漂移）。
+- 某步验证在合理修复尝试后仍失败两次。
+- 修复似乎需要触及范围外文件。
+- 你发现假设「<关键假设>」为假。
 
-## Maintenance notes
+## 维护说明
 
-For the human/agent who owns this code after the change lands:
+写给变更落地后拥有这段代码的人或智能体：
 
-- What future changes will interact with this (e.g. "if pagination is added
-  to this endpoint, the batching in step 2 must be revisited").
-- What a reviewer should scrutinize in the PR.
-- Any follow-up explicitly deferred out of this plan (and why).
+- 未来哪些改动会与此交互（例如「若此端点加入分页，必须重新审视步骤 2 中的批处理」）。
+- 审查者在 PR 中应仔细检查什么。
+- 任何明确推迟出本计划的后续工作（以及原因）。
 ```
 
 ---
 
-## Index file: `plans/README.md`
+## 索引文件：`plans/README.md`
 
-Written once by the advisor after all plans, updated by executors:
+由顾问在所有计划写完后写一次，由执行者更新：
 
 ```markdown
-# Implementation Plans
+# 实施计划
 
-Generated by the improve skill on <date>. Execute in the order below unless
-dependencies say otherwise. Each executor: read the plan fully before starting,
-honor its STOP conditions, and update your row when done.
+由 improve 技能于 <日期> 生成。按下列顺序执行，除非依赖关系另有说明。每位执行者：开始前完整阅读计划，遵守其停止条件，完成后更新你的行。
 
-## Execution order & status
+## 执行顺序与状态
 
-| Plan | Title | Priority | Effort | Depends on | Status |
+| 计划 | 标题 | 优先级 | 工作量 | 依赖 | 状态 |
 |------|-------|----------|--------|------------|--------|
-| 001  | ...   | P1       | S      | —          | TODO   |
-| 002  | ...   | P1       | M      | 001        | TODO   |
+| 001  | ...   | P1       | S      | —          | 待办   |
+| 002  | ...   | P1       | M      | 001        | 待办   |
 
-Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale — finding fixed independently or approach abandoned)
+状态取值：待办 | 进行中 | 已完成 | 已阻塞（附一行原因）| 已否决（附一行理由 — 发现已独立修复或方案已放弃）
 
-## Dependency notes
+## 依赖说明
 
-- 002 requires 001 because <reason>.
+- 002 需要 001，因为 <原因>。
 
-## Findings considered and rejected
+## 已考虑并否决的发现
 
-- <finding>: not worth doing because <one line>. (So nobody re-audits it.)
+- <发现>：不值得做，因为 <一行>。（这样没人会再审计它。）
 ```
 
-## Quality bar — check before finishing each plan
+## 质量门槛 — 完成每份计划前检查
 
-- Could a model that has never seen this repo execute this with only the plan file and the repo? If any step requires knowledge from the advisor session, inline that knowledge.
-- Is every verification a command with an expected result, not a judgment ("make sure it works")?
-- Does every step name exact files and symbols, not "the relevant module"?
-- Are the STOP conditions specific to this plan's actual risks, not boilerplate?
-- Would a reviewer reading only "Why this matters" + "Done criteria" understand what they're approving?
-- No secret values anywhere in the file — locations and credential types only.
-- "Planned at" SHA is filled in and the in-scope paths in the drift check match the Scope section.
+- 从未见过本仓库的模型，仅凭计划文件和仓库能否执行？若某步需要顾问会话中的知识，把该知识内联进去。
+- 每项验证是否都是带预期结果的命令，而非判断（「确保它能工作」）？
+- 每一步是否点名确切文件和符号，而非「相关模块」？
+- 停止条件是否针对本计划的实际风险，而非套话？
+- 审查者只读「为什么重要」+「完成标准」能否理解自己在批准什么？
+- 文件中任何地方都没有机密值 — 只写位置和凭据类型。
+- 「规划于」的 SHA 已填写，且漂移检查中的范围内路径与「范围」一节一致。

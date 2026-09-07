@@ -1,130 +1,130 @@
-# Audit Playbook
+# 审计手册
 
-What to look for, per category. Each subagent (or direct audit pass) gets the relevant section plus the **Finding format** at the bottom. Adapt depth to repo size — a 2K-line CLI gets a lighter pass than a 500K-line monorepo.
+按类别列出应检查的内容。每个子代理（或直接审计）会拿到相关章节，以及文末的**发现格式**。按仓库规模调整深度——2K 行的命令行工具应比 50 万行的单体仓库更轻量。
 
-A finding is only a finding with evidence. "Probably has N+1 queries somewhere" is not a finding; `orders/api.ts:142 issues one query per order item inside a loop` is.
-
----
-
-## 1. Correctness / Bugs
-
-The highest-trust category — real bugs found by reading, not speculation.
-
-- Error handling: swallowed exceptions, empty catch blocks, `catch (e) { console.log(e) }` on critical paths, missing error states in UI code.
-- Async hazards: unawaited promises, race conditions on shared state, missing cancellation/cleanup (stale closures in React effects, listeners never removed).
-- Null/undefined flows: non-null assertions (`!`) on values that can be null, optional chaining hiding a value that must exist, unchecked array indexing.
-- Boundary conditions: off-by-one, empty-collection handling, timezone/locale assumptions, integer overflow in counters/IDs.
-- State machines: impossible-state combinations representable in types, status enums with unhandled branches (look for `default:` that silently no-ops).
-- Concurrency: check-then-act on shared resources, missing transactions around multi-write operations, idempotency of retried operations (webhooks, queues).
-- Type escape hatches: `any` / `as` casts / `@ts-ignore` clusters — each one is a place the compiler was overruled.
-- Resource leaks: unclosed handles, connections, subscriptions; missing `finally`.
-
-## 2. Security
-
-Review only what is directly supported by code evidence. Keep findings framed as defensive maintenance: identify the code pattern, explain the production impact, and describe the remediation. Keep plans at the level of code changes, configuration changes, and tests; do not include runnable demonstration strings or step-by-step misuse details.
-
-**Handling rule:** never copy a secret value into a finding or plan — those files get committed. Reference the `file:line` and credential type only ("Stripe live key at `config.ts:12`"), and the fix sketch always includes rotation, not just removal (a committed secret is burned even after deletion).
-
-**By-design is not a finding:** standard platform conventions are intentional behavior — honoring `https_proxy`/`NO_PROXY`, reading `~/.netrc`, an explicitly local dev tool shelling out to configured package managers. A tradeoff explicitly recorded in an ADR or decision doc is likewise settled, not a finding. Flag these only when the *implementation* adds risk beyond the convention or the documented decision itself — and note that a **stale ADR is itself a finding**: if the code has drifted from what the decision doc says, report the decision drift (the doc or the code is wrong; either way the team should know), don't use the doc to suppress it.
-
-- Credential hygiene: hardcoded keys/tokens/passwords, credentials in committed `.env` files, credentials logged or persisted in event/history stores. Findings should name only the credential type and location, then recommend removal, rotation, and a safer configuration path.
-- Data crossing into interpreters or privileged APIs: SQL or shell operations assembled from request data (SQL/command injection), HTML sinks fed by user-controlled content (XSS), dynamic execution APIs used with runtime input, or filesystem paths derived from request data (path traversal). Describe the safer API or validation boundary; do not provide runnable examples.
-- Access control: endpoints/server actions that lack server-side identity checks, authorization enforced only in the client, object access by ID without ownership or tenant checks (IDOR), or missing request authenticity checks (CSRF) on state-changing routes.
-- Input contracts: API boundaries that trust request bodies without schema validation, file upload handling without clear type/size/storage constraints, or broad object assignment from request data into persistence models (mass assignment).
-- Dependency posture: run the ecosystem's audit command (`npm audit`, `pip-audit`, `cargo audit`) in read-only mode. Report only critical/high advisories that affect reachable runtime code or build/distribution paths; avoid low-signal audit noise.
-- Production configuration: overly broad CORS where credentials are allowed, missing response-hardening headers (e.g. CSP) where sensitive browser surfaces exist, cookies missing appropriate `HttpOnly`/`Secure`/`SameSite` attributes, or debug/verbose behavior enabled in production configuration.
-- Data minimization: PII or sensitive operational data in logs, stack traces returned to clients, or internal error details exposed through API responses.
-
-## 3. Performance
-
-Look for the algorithmic and architectural wins, not micro-optimizations.
-
-- N+1 patterns: query/fetch per item inside loops or per list-row rendering; missing batching or dataloader.
-- Wrong complexity: nested scans over the same collection, repeated `find`/`filter` inside hot loops where a Map keyed lookup belongs.
-- Caching gaps: identical expensive computations or fetches repeated per request/render; missing memoization at clear function boundaries; no HTTP/data-layer caching on stable data.
-- Payload size: over-fetching (select *, full objects where IDs suffice), missing pagination on unbounded lists, large JSON shipped to clients.
-- Frontend (if applicable): bundle composition (heavyweight deps for trivial use), missing code-splitting on rarely-hit routes, unoptimized images/fonts, client-side fetching for data available at render time, render waterfalls. For React/Next.js, defer to the repo's framework conventions and any installed best-practices guidelines.
-- Backend: synchronous work that belongs in a queue, missing indexes implied by query patterns (flag for verification — don't claim without schema evidence), connection-per-request patterns where pooling exists.
-- Build/CI: slow CI from missing caching, redundant pipeline steps, test suites that could parallelize.
-
-## 4. Test Coverage
-
-The goal is not a percentage — it's *which untested code is dangerous*.
-
-- Map the critical paths (money, auth, data mutation, the feature the repo exists for) and check which have zero or trivial coverage.
-- Modules with high churn (git log) + no tests = top refactor risk; flag as "characterization tests first" candidates.
-- Existing test quality: tests that assert nothing meaningful, heavy mocking that tests the mocks, snapshot tests nobody reads, flaky patterns (real timers, real network, order dependence).
-- Missing test layers: unit-only suites with zero integration coverage on API boundaries, or the inverse (slow E2E for what a unit test would catch).
-- Verification infrastructure: is there a one-command way to know the codebase works? If not, that's finding #1 and a prerequisite plan for any risky change.
-
-## 5. Tech Debt & Architecture
-
-- Duplication: the same logic re-implemented in 3+ places (search for near-identical functions/components); divergent copies that have drifted.
-- Layering violations: UI importing from data layer internals, circular dependencies, "utils" modules that became a junk drawer with high fan-in.
-- Dead code: unexported-and-unused modules, feature flags fully rolled out but still branching, commented-out blocks with no explanation, deps in the manifest no longer imported.
-- God objects/modules: files an order of magnitude larger than the repo median that everything touches; functions with double-digit parameters or deep conditional nesting.
-- Inconsistent patterns: three ways of doing data fetching / error handling / styling in the same repo — pick the winner (the one the team converged on most recently) and plan the consolidation.
-- Abstraction mismatches: premature abstractions with a single implementation, or missing abstractions where the same change always requires touching N files in lockstep.
-
-## 6. Dependencies & Migrations
-
-- Major-version lag on core framework/runtime (not every minor bump — the ones with real cost to staying behind: EOL, security-fix cutoffs, ecosystem incompatibility).
-- Deprecated APIs in use that have announced removal timelines.
-- Abandoned dependencies (no release in years, archived repos) on critical paths.
-- Duplicate dependencies solving the same problem (two date libs, two HTTP clients).
-- Lockfile/manifest drift, version pinning inconsistencies across a monorepo.
-- For each migration candidate, estimate blast radius (files touched) — that drives effort and whether to recommend it at all.
-
-## 7. DX & Tooling
-
-- Missing or broken: typecheck script, lint config, formatter, pre-commit hooks, editorconfig.
-- Slow feedback loops: dev-server or test startup measured in minutes, no watch mode, CI without caching.
-- Onboarding friction: README setup steps that are wrong/incomplete, undocumented required env vars, no `.env.example`.
-- Missing `CLAUDE.md`/`AGENTS.md` — for repos where agents will execute the plans, this is high-leverage: recommend one and include its outline as a plan.
-- Error messages/logging: unstructured logs on services, missing request IDs/correlation, debugging requiring code changes.
-
-## 8. Docs
-
-Lowest default priority — only flag where absence has a concrete cost:
-
-- Public API surface (published packages) without reference docs.
-- Architectural decisions nobody can reconstruct (why X over Y) for actively-contested areas.
-- Stale docs that are actively wrong (worse than missing) — setup instructions, API examples that no longer compile.
-
-## 9. Direction — features & where to take this next
-
-Forward-looking: not what's broken, but what this codebase wants to become. **Grounding rule:** every suggestion must cite evidence from the repo itself — a suggestion that could apply to any project in the category ("add dark mode", "add AI") is noise, not a finding. Sources of grounded direction signal:
-
-- **Unfinished intent**: TODO/FIXME clusters around one theme, feature flags never rolled out, stubbed or half-built modules, commented-out feature code, abandoned mid-feature work visible in git history.
-- **Stated-but-undelivered**: README/docs/roadmap promises with no corresponding code, CLI flags or config options that are no-ops, issue templates for features that don't exist. A PRD or `PRODUCT.md` that names users, use cases, or a direction the code hasn't caught up to is the strongest grounding signal there is — prefer it over inferred intent, and never propose something a decision doc already rejected (note the contradiction instead).
-- **Surface asymmetries**: one-directional pairs (export without import, create without bulk-create, webhooks out but not in), entities with CRUD minus one, a public API that internal code clearly needed and hand-rolled around.
-- **The adjacent possible**: capabilities the existing architecture makes disproportionately cheap — a plugin system one interface away, a public API one route file from the existing service layer, an integration the data model already supports.
-- **Friction worth productizing**: things users of this project evidently do by hand around it (visible in docs, examples, issues) that the project could absorb.
-
-Direction findings use the standard format with two adaptations: **Impact** is product/user value (who wants this and why now), and **Confidence** reflects how grounded the evidence is — not certainty that it's the right call. Strategy belongs to the maintainer; the advisor's job is grounded options with honest trade-offs. Effort estimates here are coarser; say so. Plans for selected direction findings are usually a *design/spike plan* (investigate, prototype, define the API, list open questions) rather than a build-everything plan — scope them that way.
+发现必须有证据才算发现。「大概某处有 N+1 查询」不是发现；`orders/api.ts:142` 在循环内对每个订单项发一次查询，这才是。
 
 ---
 
-## Finding format
+## 1. 正确性 / 缺陷
 
-Every finding, from every category and every subagent, comes back in this shape:
+可信度最高的类别——通过阅读代码发现的真实缺陷，而非推测。
+
+- 错误处理：被吞掉的异常、空的 catch 块、关键路径上的 `catch (e) { console.log(e) }`、界面代码中缺失的错误状态。
+- 异步隐患：未 await 的 Promise、共享状态上的竞态、缺失的取消/清理（React 副作用中的过期闭包、从未移除的监听器）。
+- null/undefined 流：可能为 null 的值上的非空断言（`!`）、用可选链掩盖本应存在的值、未检查的数组下标访问。
+- 边界条件：差一错误、空集合处理、时区/区域设置假设、计数器/ID 的整数溢出。
+- 状态机：类型上可表示的不可能状态组合、带未处理分支的状态枚举（查找静默空操作的 `default:`）。
+- 并发：共享资源上的先检查后执行、多写操作周围缺失事务、重试操作的幂等性（webhook、队列）。
+- 类型逃逸口：`any` / `as` 断言 / `@ts-ignore` 聚集处——每一处都是编译器被否决的地方。
+- 资源泄漏：未关闭的句柄、连接、订阅；缺失 `finally`。
+
+## 2. 安全
+
+只审查有代码证据直接支撑的内容。发现应表述为防御性维护：指出代码模式、说明生产影响，并描述修复方式。计划停留在代码变更、配置变更和测试的层面；不要包含可运行的演示字符串或逐步误用细节。
+
+**处理规则：** 切勿把密钥值复制进发现或计划——这些文件会被提交。只引用 `file:line` 和凭据类型（例如「`config.ts:12` 处的 Stripe 线上密钥」），修复草案必须包含轮换，而不仅是删除（已提交的密钥即使删除也已泄露）。
+
+**「设计如此」不是发现：** 标准平台约定属于有意行为——遵守 `https_proxy`/`NO_PROXY`、读取 `~/.netrc`、明确的本地开发工具向外调用已配置的包管理器。ADR 或决策文档中明确记录的权衡同样已敲定，不是发现。仅当*实现*在约定或已记录决策之外引入了额外风险时才标记——并注意**过期 ADR 本身就是发现**：如果代码已偏离决策文档所述，应报告决策漂移（文档或代码有一方是错的；无论如何团队应当知情），不要用文档来压制该发现。
+
+- 凭据卫生：硬编码的密钥/令牌/密码、已提交的 `.env` 文件中的凭据、被记录或持久化到事件/历史存储中的凭据。发现只应点名凭据类型和位置，然后建议删除、轮换，以及更安全的配置路径。
+- 数据进入解释器或特权 API：从请求数据拼装的 SQL 或命令行操作（SQL/命令注入）、由用户可控内容喂入的 HTML 输出点（XSS）、与运行时输入一起使用的动态执行 API，或从请求数据派生的文件系统路径（路径遍历）。描述更安全的 API 或校验边界；不要提供可运行示例。
+- 访问控制：缺少服务端身份校验的端点/服务端动作、仅在客户端实施的授权、按 ID 访问对象却无所有权或租户检查（IDOR），或状态变更路由上缺少请求真实性校验（CSRF）。
+- 输入契约：信任请求体却无模式校验的 API 边界、缺少明确类型/大小/存储约束的文件上传处理，或将请求数据广泛赋值到持久化模型（批量赋值）。
+- 依赖态势：以只读模式运行该生态的审计命令（`npm audit`、`pip-audit`、`cargo audit`）。只报告影响可达运行时代码或构建/分发路径的严重/高危公告；避免低信号审计噪音。
+- 生产配置：允许携带凭据时 CORS 过宽、存在敏感浏览器界面却缺少响应加固头（例如 CSP）、Cookie 缺少适当的 `HttpOnly`/`Secure`/`SameSite` 属性，或生产配置中启用了调试/冗长行为。
+- 数据最小化：日志中的 PII 或敏感运维数据、返回给客户端的堆栈跟踪，或通过 API 响应暴露的内部错误细节。
+
+## 3. 性能
+
+寻找算法与架构层面的收益，而非微优化。
+
+- N+1 模式：循环内或列表行渲染时逐条查询/拉取；缺少批处理或 dataloader。
+- 错误的复杂度：对同一集合的嵌套扫描、在热循环中反复 `find`/`filter` 而本该用 Map 键查找。
+- 缓存缺口：每个请求/渲染都重复相同的昂贵计算或拉取；在清晰的函数边界缺少记忆化；稳定数据没有 HTTP/数据层缓存。
+- 载荷体积：过度拉取（`select *`、只需 ID 却取完整对象）、无界列表缺少分页、向客户端发送过大的 JSON。
+- 前端（如适用）：打包构成（为琐碎用途引入重量级依赖）、很少访问的路由缺少代码分割、未优化的图片/字体、渲染时已可用的数据却在客户端拉取、渲染瀑布流。对于 React/Next.js，遵循仓库的框架约定及任何已安装的最佳实践指南。
+- 后端：本应进入队列的同步工作、查询模式暗示但未建的索引（标记待核实——没有表结构证据不要断言）、已有连接池却仍按请求建连。
+- 构建/持续集成：缺少缓存导致持续集成缓慢、冗余的流水线步骤、本可并行的测试套件。
+
+## 4. 测试覆盖
+
+目标不是百分比——而是*哪些未测试代码是危险的*。
+
+- 梳理关键路径（资金、认证、数据变更、仓库存在的核心功能），检查哪些覆盖为零或流于形式。
+- 高变更率模块（`git log`）+ 无测试 = 最高重构风险；标记为「先写表征测试」候选。
+- 现有测试质量：断言毫无意义的测试、重度模拟以至于测的是模拟对象本身、无人阅读的快照测试、不稳定模式（真实定时器、真实网络、顺序依赖）。
+- 缺失的测试层级：只有单元测试、API 边界零集成覆盖，或反过来（本可用单元测试捕获的问题却用缓慢的端到端测试）。
+- 验证基础设施：是否有一条命令就能确认代码库能工作？若无，这就是发现 #1，也是任何高风险变更的前置计划。
+
+## 5. 技术债与架构
+
+- 重复：同一逻辑在 3+ 处重新实现（搜索近乎相同的函数/组件）；已漂移的分叉副本。
+- 分层违规：界面从数据层内部导入、循环依赖、变成杂物抽屉且被大量引用的 `utils` 模块。
+- 死代码：未导出且未使用的模块、已全量推出却仍在分支的功能开关、无说明的注释掉代码块、清单中不再被导入的依赖。
+- 上帝对象/模块：体积比仓库中位数高出一个数量级、且处处被触及的文件；参数达两位数或条件嵌套很深的函数。
+- 不一致的模式：同一仓库里有三种数据获取 / 错误处理 / 样式写法——选出赢家（团队最近收敛的那一种）并规划合并。
+- 抽象错配：只有单一实现的过早抽象，或每次同样的变更总要同步改 N 个文件却缺少抽象。
+
+## 6. 依赖与迁移
+
+- 核心框架/运行时的主版本滞后（不是每一次次要升级——而是落后的真实成本：停止维护、安全修复截止、生态不兼容）。
+- 仍在使用、且已公布移除时间表的已弃用 API。
+- 关键路径上的废弃依赖（数年无发布、仓库已归档）。
+- 解决同一问题的重复依赖（两个日期库、两个 HTTP 客户端）。
+- 锁文件/清单漂移、单体仓库中版本锁定不一致。
+- 对每个迁移候选，估计波及范围（触及的文件数）——这决定工作量以及是否值得建议。
+
+## 7. 开发体验与工具链
+
+- 缺失或损坏：类型检查脚本、lint 配置、格式化工具、pre-commit 钩子、editorconfig。
+- 缓慢的反馈循环：开发服务器或测试启动以分钟计、无监视模式、持续集成无缓存。
+- 上手摩擦：README 中错误/不完整的搭建步骤、未文档化的必需环境变量、没有 `.env.example`。
+- 缺失 `CLAUDE.md`/`AGENTS.md`——对于将由智能体执行计划的仓库，这是高杠杆率事项：建议补一份，并在计划中附上大纲。
+- 错误消息/日志：服务上的非结构化日志、缺失请求 ID/关联、调试需要改代码。
+
+## 8. 文档
+
+默认优先级最低——仅在缺失会造成具体成本时标记：
+
+- 已发布包的对外 API 没有参考文档。
+- 仍有争议的领域中无人能还原的架构决策（为何选 X 而非 Y）。
+- 内容已经出错的过期文档（比缺失更糟）——搭建说明、已无法编译的 API 示例。
+
+## 9. 方向 — 功能与下一步往哪走
+
+面向未来：不是哪里坏了，而是这个代码库想成为什么。**依据规则：** 每条建议必须引用仓库自身的证据——可套用到该类别任何项目上的建议（「加暗色模式」「加人工智能」）是噪音，不是发现。有依据的方向信号来源：
+
+- **未完成的意图**：围绕同一主题的 TODO/FIXME 聚集、从未推出的功能开关、桩模块或半成品模块、被注释掉的功能代码、版本历史中可见的中途放弃的功能工作。
+- **已声明但未交付**：README/文档/路线图中的承诺却无对应代码、空操作的命令行标志或配置选项、针对不存在功能的议题模板。点名用户、用例或代码尚未跟上的方向的 PRD 或 `PRODUCT.md` 是最强的依据信号——优先于推断的意图，且切勿提议决策文档已经否决的事项（改为指出矛盾）。
+- **表面不对称**：单向配对（有导出无导入、有创建无批量创建、webhook 只出不进）、CRUD 缺一项的实体、内部代码明显需要却手写绕过的公开 API。
+- **顺势可做**：现有架构使成本不成比例地低的能力——只差一个接口的插件系统、只差一个路由文件就能从现有服务层露出的公开 API、数据模型已支持的集成。
+- **值得产品化的摩擦**：本项目用户显然在周边手工完成的事情（可见于文档、示例、议题），项目可以吸收进来。
+
+方向发现使用标准格式，有两处适配：**影响**是产品/用户价值（谁想要这个、为何是现在），**置信度**反映证据的依据有多扎实——而非这就是正确选择的把握。策略属于维护者；顾问的职责是给出有依据的选项并诚实权衡。此处的工作量估计更粗；请如实说明。入选方向发现的计划通常是*设计/试探计划*（调研、原型、定义 API、列出未决问题），而非一次性全部做完的计划——按此界定范围。
+
+---
+
+## 发现格式
+
+每个类别、每个子代理的每条发现，都按此形状返回：
 
 ```markdown
-### [CATEGORY-NN] Short imperative title
+### [类别-NN] 简短祈使句标题
 
-- **Evidence**: `path/file.ts:123` — one-sentence description of what's there. (Repeat per location; 2–5 strongest locations, note "and ~N similar sites" if widespread.)
-- **Impact**: What goes wrong / what's being paid because of this. Concrete: "every order-list render issues 1+N queries", not "suboptimal".
-- **Effort**: S (hours) / M (a day-ish) / L (multi-day) — for the *fix*, including tests.
-- **Risk**: What the fix could break; LOW/MED/HIGH plus one line why.
-- **Confidence**: HIGH (read the code, certain) / MED (strong signal, needs verification) / LOW (smell, needs investigation). LOW-confidence findings may be reported but get an "investigate" plan, not a "fix" plan.
-- **Fix sketch**: 1–3 sentences. Not the plan — just enough to judge effort honestly.
+- **证据**：`path/file.ts:123` — 一句话描述那里有什么。（按位置重复；2–5 处最强位置，若普遍存在则注明「以及约 N 处类似位置」。）
+- **影响**：会出什么错 / 因此在付出什么代价。要具体：「每次订单列表渲染都会发出 1+N 次查询」，而不是「不够优化」。
+- **工作量**：S（数小时）/ M（大约一天）/ L（多日）——针对*修复*，含测试。
+- **风险**：修复可能破坏什么；低/中/高 加一行原因。
+- **置信度**：高（读过代码，确定）/ 中（信号强，需要核实）/ 低（异味，需要调查）。低置信度发现可以上报，但应给「排查」计划，而非「修复」计划。
+- **修复草案**：1–3 句。不是计划——只需足以诚实判断工作量。
 ```
 
-## Prioritization rubric
+## 优先级准则
 
-Order findings by **leverage = impact ÷ effort, discounted by confidence and fix-risk**. Tiebreakers:
+按 **杠杆率 = 影响 ÷ 工作量，再按置信度与修复风险打折** 排序发现。并列时：
 
-1. Anything that unblocks other findings (verification baseline, characterization tests) floats up.
-2. Security findings with HIGH confidence float above equivalent-leverage non-security findings.
-3. Prefer findings whose fix has a clean verification story — executor models succeed at those.
-4. "Not worth doing" is a valid verdict; record it with one line of reasoning so the user knows it was considered.
+1. 能解锁其他发现的事项（验证基线、表征测试）上浮。
+2. 高置信度的安全发现，上浮到同等杠杆率的非安全发现之上。
+3. 优先修复有清晰验证路径的发现——执行者模型在那些上更容易成功。
+4. 「不值得做」是有效结论；用一行理由记录，让用户知道已考虑过。

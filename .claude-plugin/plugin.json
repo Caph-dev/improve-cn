@@ -1,6 +1,6 @@
 {
   "name": "improve",
-  "description": "Point it at a codebase and it figures out what's worth doing — bugs, perf, tech debt, what to build next — then writes plans any agent can execute. It can hand the work to a cheaper model and review the result. It never edits your code.",
+  "description": "给定一个代码库，它会判断值得做什么——缺陷、性能、技术债、下一步该构建什么——然后写出任何智能体都能执行的计划。可以把工作交给更便宜的模型并审查结果。它从不编辑你的代码。",
   "version": "1.0.0",
   "author": {
     "name": "shadcn",
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/shadcn/improve",
   "repository": "https://github.com/shadcn/improve",
   "license": "MIT",
-  "keywords": ["audit", "code-review", "planning", "agents", "tech-debt", "security"]
+  "keywords": ["审计", "代码审查", "规划", "智能体", "技术债", "安全"]
 }
